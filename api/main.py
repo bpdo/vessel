@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 from pydantic import BaseModel
 import shutil
-import sqlite3
 from typing import List, Optional
 import uuid
 
@@ -122,8 +121,9 @@ async def create_model_data(
 
 
 @app.get(f"{version}/models/{{id}}")
-def read_model(id: str):
-    return {"id": id}
+async def read_model(id: str):
+    query = "SELECT * FROM models WHERE version = :version"
+    return await database.fetch_one(query=query, values={"version": id})
 
 
 @app.delete(f"{version}/models/{{id}}")
