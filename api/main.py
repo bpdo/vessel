@@ -26,7 +26,7 @@ async def startup():
     query = "SELECT name FROM sqlite_master WHERE type='table' AND name='models'"
 
     if not await database.fetch_all(query=query):
-        query = "CREATE TABLE models (id INTEGER PRIMARY KEY, version text, path text, data_set text, pipeline text, tag text, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP, archived integer DEFAULT 0)"
+        query = "CREATE TABLE models (id INTEGER PRIMARY KEY, version text NOT NULL UNIQUE, path text, data_set text, pipeline text, tag text, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP, archived integer DEFAULT 0)"
         await database.execute(query=query)
 
 
