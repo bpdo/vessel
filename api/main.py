@@ -26,7 +26,16 @@ async def startup():
     query = "SELECT name FROM sqlite_master WHERE type='table' AND name='models'"
 
     if not await database.fetch_all(query=query):
-        query = "CREATE TABLE models (id INTEGER PRIMARY KEY, version text NOT NULL UNIQUE, path text, data_set text, pipeline text, tag text, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP, archived integer DEFAULT 0)"
+        query = """CREATE TABLE models (
+            id INTEGER PRIMARY KEY, 
+            version text NOT NULL UNIQUE, 
+            path text NOT NULL, 
+            data_set text, 
+            pipeline text, 
+            tag text, 
+            created TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+            archived integer DEFAULT 0
+        )"""
         await database.execute(query=query)
 
 
@@ -35,7 +44,17 @@ async def shutdown():
     await database.disconnect()
 
 
-@app.get(f"{version}/models")
+class Model(BaseModel):
+    version: str
+    path: str
+    data_set: Optional[str] = None
+    pipeline: Optional[str] = None
+    tag: Optional[str] = None
+    created: str
+    archived: bool
+
+
+@app.get(f"{version}/models", response_model=List[Model])
 async def read_models(include_archived: bool = False):
     query = (
         "SELECT * FROM models WHERE archived == 0"
