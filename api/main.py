@@ -27,7 +27,7 @@ async def startup():
     query = "SELECT name FROM sqlite_master WHERE type='table' AND name='models'"
 
     if not await database.fetch_all(query=query):
-        query = """CREATE TABLE models (id INTEGER PRIMARY KEY, version text)"""
+        query = "CREATE TABLE models (id INTEGER PRIMARY KEY, version text, path text, data_set text, pipeline text, tag text, created TIMESTAMP DEFAULT CURRENT_TIMESTAMP, archived integer DEFAULT 0)"
         await database.execute(query=query)
 
 
@@ -92,9 +92,15 @@ async def create_model_data(
             raise HTTPException(status_code=500, detail="Version already exists")
 
         # write to database
-        query = "INSERT INTO models(version) VALUES (:version)"
+        query = "INSERT INTO models(version, path, data_set, pipeline, tag) VALUES (:version, :path, :data_set, :pipeline, :tag)"
         values = [
-            {"version": sha1Hashed},
+            {
+                "version": sha1Hashed,
+                "path": str(versioned_path),
+                "data_set": data_set,
+                "pipeline": pipeline,
+                "tag": tag,
+            },
         ]
         await database.execute_many(query=query, values=values)
 
@@ -118,11 +124,6 @@ async def create_model_data(
 @app.get(f"{version}/models/{{id}}")
 def read_model(id: str):
     return {"id": id}
-
-
-@app.put(f"{version}/models/{{id}}")
-def update_model(id: str):
-    return {"model_id": id, "updated": True}
 
 
 @app.delete(f"{version}/models/{{id}}")
