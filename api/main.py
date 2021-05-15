@@ -1,38 +1,45 @@
-from typing import List, Optional
-
+from databases import Database
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from pydantic import BaseModel
 import hashlib
 import os
 from pathlib import Path
+from pydantic import BaseModel
 import shutil
+import sqlite3
+from typing import List, Optional
 import uuid
 
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "8192"))
 REGISTRY_PATH = os.getenv("REGISTRY_PATH", "/tmp/vessel")
 
 app = FastAPI()
+database = Database("sqlite:///vessel.db")
 
 # default version for url path
 version = "/v0"
 
 
-class Model(BaseModel):
-    data_set_id: Optional[str] = None
-    pipeline_id: Optional[str] = None
+@app.on_event("startup")
+async def startup():
+    await database.connect()
+
+    # check if a table exists
+    query = "SELECT name FROM sqlite_master WHERE type='table' AND name='models'"
+
+    if not await database.fetch_all(query=query):
+        query = """CREATE TABLE models (id INTEGER PRIMARY KEY, version text)"""
+        await database.execute(query=query)
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    await database.disconnect()
 
 
 @app.get(f"{version}/models")
-def read_models():
-    return [
-        {
-            "id": "0000-000",
-            "version": "hash",
-            "s3_location": "http://localhost",
-            "data_set_id": "123",
-            "pipeline_id": "456",
-        }
-    ]
+async def read_models():
+    query = "SELECT * FROM models"
+    return await database.fetch_all(query=query)
 
 
 @app.post(f"{version}/models")
@@ -83,6 +90,13 @@ async def create_model_data(
         # check if this version already exists
         if versioned_path.exists():
             raise HTTPException(status_code=500, detail="Version already exists")
+
+        # write to database
+        query = "INSERT INTO models(version) VALUES (:version)"
+        values = [
+            {"version": sha1Hashed},
+        ]
+        await database.execute_many(query=query, values=values)
 
         # move the scratch folder to version-based folder
         os.rename(temp_path, versioned_path)
