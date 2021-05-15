@@ -1,10 +1,11 @@
 from typing import List, Optional
 
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 import hashlib
 import os
 from pathlib import Path
+import shutil
 import uuid
 
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "8192"))
@@ -34,23 +35,20 @@ def read_models():
     ]
 
 
-# @app.post(f"{version}/models")
-# def create_model(model: Model):
-#     return model
-
-
 @app.post(f"{version}/models")
 async def create_model_data(
-    data_set_id: str = Form(...),
-    pipeline_id: str = Form(...),
+    data_set: Optional[str] = Form(None),
     files: List[UploadFile] = File(...),
+    pipeline: Optional[str] = Form(None),
+    tag: Optional[str] = Form(None),
 ):
+    # create a random uuid for temp file storage
+    random_uuid = str(uuid.uuid4())
+
+    # create a temp storage location for model upload
+    temp_path = Path(REGISTRY_PATH, "scratch", random_uuid)
+
     try:
-        # create a random uuid for temp file storage
-        random_uuid = str(uuid.uuid4())
-
-        temp_path = Path(REGISTRY_PATH, "scratch", random_uuid)
-
         # create a folder that will be renamed once the hash is calculated
         temp_path.mkdir(parents=True, exist_ok=True)
 
@@ -83,13 +81,24 @@ async def create_model_data(
         versioned_path = Path(REGISTRY_PATH, sha1Hashed)
 
         # check if this version already exists
-        if not versioned_path.exists():
-            # move the scratch folder to version-based folder
-            os.rename(temp_path, versioned_path)
+        if versioned_path.exists():
+            raise HTTPException(status_code=500, detail="Version already exists")
 
-        return {"version": sha1Hashed}
+        # move the scratch folder to version-based folder
+        os.rename(temp_path, versioned_path)
+
+        # return registred model
+        return {
+            "version": sha1Hashed,
+            "path": versioned_path,
+            "data_set": data_set,
+            "pipeline": pipeline,
+            "tag": tag,
+        }
     finally:
-        print("done")
+        # delete the scratch model folder
+        if temp_path.exists():
+            shutil.rmtree(temp_path)
 
 
 @app.get(f"{version}/models/{{id}}")
