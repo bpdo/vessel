@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from pydantic import BaseModel
 import shutil
+import sqlite3
 from typing import List, Optional
 import uuid
 
@@ -64,7 +65,7 @@ async def read_models(include_archived: bool = False):
     return await database.fetch_all(query=query)
 
 
-@app.post(f"{version}/models")
+@app.post(f"{version}/models", response_model=Model)
 async def create_model_data(
     data_set: Optional[str] = Form(None),
     files: List[UploadFile] = File(...),
@@ -115,28 +116,30 @@ async def create_model_data(
 
         # write to database
         query = "INSERT INTO models(version, path, data_set, pipeline, tag) VALUES (:version, :path, :data_set, :pipeline, :tag)"
-        values = [
-            {
-                "version": sha1Hashed,
-                "path": str(versioned_path),
-                "data_set": data_set,
-                "pipeline": pipeline,
-                "tag": tag,
-            },
-        ]
-        await database.execute_many(query=query, values=values)
-
-        # move the scratch folder to version-based folder
-        os.rename(temp_path, versioned_path)
-
-        # return registred model
-        return {
+        values = {
             "version": sha1Hashed,
-            "path": versioned_path,
+            "path": str(versioned_path),
             "data_set": data_set,
             "pipeline": pipeline,
             "tag": tag,
         }
+
+        result = await database.execute(query=query, values=values)
+
+        if result != 1:
+            raise HTTPException(status_code=500, detail="Model version failed to save")
+
+        # move the scratch folder to version-based folder
+        os.rename(temp_path, versioned_path)
+
+        # select the newly create model from the database
+        select_query = "SELECT * FROM models WHERE version = :version"
+        return await database.fetch_one(
+            query=select_query, values={"version": sha1Hashed}
+        )
+
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=500, detail="Version already exists")
     finally:
         # delete the scratch model folder
         if temp_path.exists():
