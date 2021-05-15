@@ -36,8 +36,12 @@ async def shutdown():
 
 
 @app.get(f"{version}/models")
-async def read_models():
-    query = "SELECT * FROM models"
+async def read_models(include_archived: bool = False):
+    query = (
+        "SELECT * FROM models WHERE archived == 0"
+        if not include_archived
+        else "SELECT * FROM models"
+    )
     return await database.fetch_all(query=query)
 
 
@@ -126,6 +130,34 @@ async def read_model(id: str):
     return await database.fetch_one(query=query, values={"version": id})
 
 
+class Metadata(BaseModel):
+    archived: Optional[bool] = None
+
+
+@app.put(f"{version}/models/{{id}}")
+async def read_model(id: str, metadata: Metadata):
+    # build the set query part
+    update_set = ""
+
+    if metadata.archived is not None:
+        update_set += "archived = :archived"
+
+    if not update_set:
+        return 0
+
+    # build the query and query values
+    query = f"UPDATE models SET {update_set} WHERE version = :version"
+    values = {"archived": int(metadata.archived == True), "version": id}
+
+    # update the model
+    return await database.execute(query=query, values=values)
+
+
 @app.delete(f"{version}/models/{{id}}")
-def delete_model(id: str):
-    return {"id": id, "deleted": True}
+async def delete_model(id: str):
+    # build the query and query values
+    query = "UPDATE models SET archived = 1 WHERE version = :version"
+    values = {"version": id}
+
+    # set the model archive value to "true"
+    return await database.execute(query=query, values=values)
