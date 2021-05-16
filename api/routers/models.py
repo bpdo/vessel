@@ -14,6 +14,7 @@ router = APIRouter()
 
 
 class Model(BaseModel):
+    id: int
     name: str
     description: Optional[str] = None
     archived: Optional[bool]
