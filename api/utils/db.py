@@ -1,7 +1,26 @@
 from databases import Database
 
+from ..utils import config
 
-async def init(database: Database):
+# load the configuration
+_config = config.load()
+
+# create the database object
+database = Database(_config["connection_string"])
+
+
+async def connect():
+    await database.connect()
+
+    # create the database tables if they don't exist
+    await _init()
+
+
+async def disconnect():
+    await database.disconnect()
+
+
+async def _init():
     """Initializes the database and creates tables if they don't exist"""
 
     # check if the models table exists
