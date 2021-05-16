@@ -9,13 +9,13 @@ import sqlite3
 from typing import List, Optional
 import uuid
 
-from .utils import db
+from .utils import config, db
 
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "8192"))
-REGISTRY_PATH = os.getenv("REGISTRY_PATH", "/tmp/vessel")
+# load the configuration
+_config = config.load()
 
 app = FastAPI()
-database = Database("sqlite:///vessel.db")
+database = Database(_config["connection_string"])
 
 # default version for url path
 version = "/v0"
@@ -83,7 +83,7 @@ async def create_model_data(
     random_uuid = str(uuid.uuid4())
 
     # create a temp storage location for model upload
-    temp_path = Path(REGISTRY_PATH, ".vessel", random_uuid)
+    temp_path = Path(_config["file_path"], ".vessel", random_uuid)
 
     try:
         # check if the model exists
@@ -108,7 +108,7 @@ async def create_model_data(
                     # read the file chunk by chunk until there are no more chunks
                     while True:
                         # read a chunk from the file
-                        chunk = f.read(CHUNK_SIZE)
+                        chunk = f.read(_config["chunk_size"])
                         if not chunk:
                             break
 
@@ -122,7 +122,7 @@ async def create_model_data(
         sha1Hashed = sha1Hash.hexdigest()[:16]
 
         # create path with model version
-        versioned_path = Path(REGISTRY_PATH, sha1Hashed)
+        versioned_path = Path(_config["file_path"], sha1Hashed)
 
         # fetch the model version by tag and model id
         query = "SELECT id FROM versions WHERE tag = :tag AND model_id = :model_id"
