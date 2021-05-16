@@ -79,9 +79,24 @@ async def read_model(id: int):
 async def create_model(model: Model):
     """Creates a new model, name must be unique"""
 
-    query = "INSERT INTO models(name, description) VALUES(:name, :description)"
-    values = {"name": model.name, "description": model.description}
-    return await database.execute(query, values=values)
+    try:
+        # insert query for creating a model with name and description
+        query = "INSERT INTO models(name, description) VALUES(:name, :description)"
+
+        # build the values dictionary
+        values = {"name": model.name, "description": model.description}
+
+        # execute the query with values
+        return await database.execute(query, values=values)
+
+    except sqlite3.IntegrityError as e:
+        logging.error(e)
+        raise HTTPException(
+            status_code=500, detail="Model already exists, name must be unique"
+        )
+
+    except:
+        raise HTTPException(status_code=500, detail="Error creating the model")
 
 
 @app.get(f"{version}/models/{{id}}/versions", response_model=List[Version])
