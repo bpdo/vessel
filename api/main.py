@@ -84,7 +84,7 @@ async def read_model(id: str):
     return await database.fetch_all(query=query, values={"model_id": id})
 
 
-@app.post(f"{version}/models/{{id}}/versions")
+@app.post(f"{version}/models/{{id}}/versions", response_model=Version)
 async def create_model_data(
     id: int,
     data_set: Optional[str] = Form(None),
@@ -184,7 +184,7 @@ async def create_model_data(
             shutil.rmtree(temp_path)
 
 
-@app.get(f"{version}/models/{{id}}/versions/{{tag}}")
+@app.get(f"{version}/models/{{id}}/versions/{{tag}}", response_model=Version)
 async def read_model(id: str, tag: str):
     """Fetch model version details based on a model id and a version tag"""
 
