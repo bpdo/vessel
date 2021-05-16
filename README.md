@@ -4,6 +4,14 @@ a machine learning model registry
 
 ### Getting Started
 
+Install the dependencies:
+
+```
+pip install -r requirements.txt
+```
+
+Start-up the server:
+
 ```
 make
 ```
