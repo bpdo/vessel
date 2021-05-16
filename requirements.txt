@@ -1,5 +1,6 @@
 black
 databases[sqlite]
 fastapi==0.65.1
+python-dotenv
 python-multipart==0.0.5
 uvicorn[standard]==0.13.4

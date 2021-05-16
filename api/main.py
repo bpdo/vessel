@@ -1,6 +1,7 @@
 from databases import Database
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 import hashlib
+import logging
 import os
 from pathlib import Path
 from pydantic import BaseModel
@@ -10,6 +11,9 @@ from typing import List, Optional
 import uuid
 
 from .utils import config, db
+
+# configure logging
+logging.basicConfig(level=logging.INFO)
 
 # load the configuration
 _config = config.load()
