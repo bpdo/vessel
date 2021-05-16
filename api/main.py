@@ -9,6 +9,8 @@ import sqlite3
 from typing import List, Optional
 import uuid
 
+from .utils import db
+
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "8192"))
 REGISTRY_PATH = os.getenv("REGISTRY_PATH", "/tmp/vessel")
 
@@ -23,21 +25,8 @@ version = "/v0"
 async def startup():
     await database.connect()
 
-    # check if a table exists
-    query = "SELECT name FROM sqlite_master WHERE type='table' AND name='models'"
-
-    if not await database.fetch_all(query=query):
-        query = """CREATE TABLE models (
-            id INTEGER PRIMARY KEY, 
-            version text NOT NULL UNIQUE, 
-            path text NOT NULL, 
-            data_set text, 
-            pipeline text, 
-            tag text, 
-            created TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
-            archived integer DEFAULT 0
-        )"""
-        await database.execute(query=query)
+    # init the database
+    await db.init(database)
 
 
 @app.on_event("shutdown")
@@ -46,6 +35,11 @@ async def shutdown():
 
 
 class Model(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class Version(BaseModel):
     version: str
     path: str
     data_set: Optional[str] = None
@@ -57,6 +51,8 @@ class Model(BaseModel):
 
 @app.get(f"{version}/models", response_model=List[Model])
 async def read_models(include_archived: bool = False):
+    """Fetches all models"""
+
     query = (
         "SELECT * FROM models WHERE archived == 0"
         if not include_archived
@@ -65,20 +61,38 @@ async def read_models(include_archived: bool = False):
     return await database.fetch_all(query=query)
 
 
-@app.post(f"{version}/models", response_model=Model)
+@app.post(f"{version}/models")
+async def create_model(model: Model):
+    """Creates a new model, name must be unique"""
+
+    query = "INSERT INTO models(name, description) VALUES(:name, :description)"
+    values = {"name": model.name, "description": model.description}
+    result = await database.execute(query, values=values)
+    return result
+
+
+@app.post(f"{version}/models/{{id}}/versions")
 async def create_model_data(
+    id: int,
     data_set: Optional[str] = Form(None),
     files: List[UploadFile] = File(...),
     pipeline: Optional[str] = Form(None),
-    tag: Optional[str] = Form(None),
+    tag: Optional[str] = Form(...),
 ):
     # create a random uuid for temp file storage
     random_uuid = str(uuid.uuid4())
 
     # create a temp storage location for model upload
-    temp_path = Path(REGISTRY_PATH, "scratch", random_uuid)
+    temp_path = Path(REGISTRY_PATH, ".vessel", random_uuid)
 
     try:
+        # check if the model exists
+        query = "SELECT id FROM models WHERE id = :id"
+        model = await database.fetch_one(query=query, values={"id": id})
+
+        if not model:
+            raise HTTPException(status_code=404, detail="Model not found")
+
         # create a folder that will be renamed once the hash is calculated
         temp_path.mkdir(parents=True, exist_ok=True)
 
@@ -110,54 +124,77 @@ async def create_model_data(
         # create path with model version
         versioned_path = Path(REGISTRY_PATH, sha1Hashed)
 
-        # check if this version already exists
-        if versioned_path.exists():
-            raise HTTPException(status_code=500, detail="Version already exists")
+        # fetch the model version by tag and model id
+        query = "SELECT id FROM versions WHERE tag = :tag AND model_id = :model_id"
+        values = {"tag": tag, "model_id": id}
+        result = await database.fetch_one(query=query, values=values)
 
-        # write to database
-        query = "INSERT INTO models(version, path, data_set, pipeline, tag) VALUES (:version, :path, :data_set, :pipeline, :tag)"
+        # check if this version already exists
+        if result:
+            raise HTTPException(
+                status_code=500,
+                detail="Version already exists, tag and model id must be unique",
+            )
+
+        # write the model version to the database
+        query = "INSERT INTO versions(model_id, tag, path, data_set, pipeline, hash) VALUES (:model_id, :tag, :path, :data_set, :pipeline, :hash)"
         values = {
-            "version": sha1Hashed,
+            "model_id": model.id,
+            "tag": tag,
+            "hash": sha1Hashed,
             "path": str(versioned_path),
             "data_set": data_set,
             "pipeline": pipeline,
-            "tag": tag,
         }
-
         result = await database.execute(query=query, values=values)
 
-        if result != 1:
+        if result < 1:
             raise HTTPException(status_code=500, detail="Model version failed to save")
 
         # move the scratch folder to version-based folder
-        os.rename(temp_path, versioned_path)
+        if not versioned_path.exists():
+            os.rename(temp_path, versioned_path)
 
         # select the newly create model from the database
-        select_query = "SELECT * FROM models WHERE version = :version"
-        return await database.fetch_one(
-            query=select_query, values={"version": sha1Hashed}
-        )
+        query = "SELECT * FROM versions WHERE model_id = :model_id AND tag = :tag"
+        values = {"model_id": id, "tag": tag}
+        return await database.fetch_one(query=query, values=values)
 
-    except sqlite3.IntegrityError:
-        raise HTTPException(status_code=500, detail="Version already exists")
+    except sqlite3.IntegrityError as db_error:
+        print(db_error)
+        raise HTTPException(
+            status_code=500, detail="Error saving version to the database"
+        )
     finally:
         # delete the scratch model folder
         if temp_path.exists():
             shutil.rmtree(temp_path)
 
 
-@app.get(f"{version}/models/{{id}}")
+@app.get(f"{version}/models/{{id}}/versions")
 async def read_model(id: str):
-    query = "SELECT * FROM models WHERE version = :version"
-    return await database.fetch_one(query=query, values={"version": id})
+    """Fetch all model versions based on a model id"""
+
+    query = "SELECT * FROM versions WHERE model_id = :model_id"
+    return await database.fetch_all(query=query, values={"model_id": id})
+
+
+@app.get(f"{version}/models/{{id}}/versions/{{tag}}")
+async def read_model(id: str, tag: str):
+    """Fetch model version details based on a model id and a version tag"""
+
+    query = "SELECT * FROM versions WHERE model_id = :model_id AND tag = :tag"
+    return await database.fetch_one(query=query, values={"model_id": id, "tag": tag})
 
 
 class Metadata(BaseModel):
     archived: Optional[bool] = None
 
 
-@app.put(f"{version}/models/{{id}}")
-async def read_model(id: str, metadata: Metadata):
+@app.put(f"{version}/models/{{id}}/versions/{{tag}}")
+async def read_model(id: str, tag: str, metadata: Metadata):
+    """Updates the metadata for a specific model version"""
+
     # build the set query part
     update_set = ""
 
@@ -168,18 +205,22 @@ async def read_model(id: str, metadata: Metadata):
         return 0
 
     # build the query and query values
-    query = f"UPDATE models SET {update_set} WHERE version = :version"
-    values = {"archived": int(metadata.archived == True), "version": id}
+    query = (
+        f"UPDATE versions SET {update_set} WHERE model_id = :model_id AND tag = :tag"
+    )
+    values = {"archived": int(metadata.archived == True), "model_id": id, "tag": tag}
 
     # update the model
     return await database.execute(query=query, values=values)
 
 
-@app.delete(f"{version}/models/{{id}}")
-async def delete_model(id: str):
+@app.delete(f"{version}/models/{{id}}/versions/{{tag}}")
+async def delete_model(id: str, tag: str):
+    """Deletes a model version by setting the archived flag, true"""
+
     # build the query and query values
-    query = "UPDATE models SET archived = 1 WHERE version = :version"
-    values = {"version": id}
+    query = "UPDATE versions SET archived = 1 WHERE model_id = :model_id AND tag = :tag"
+    values = {"model_id": id, "tag": tag}
 
     # set the model archive value to "true"
     return await database.execute(query=query, values=values)
