@@ -44,11 +44,12 @@ class Model(BaseModel):
 
 
 class Version(BaseModel):
-    version: str
+    model_id: int
+    tag: str
+    hash: str
     path: str
     data_set: Optional[str] = None
     pipeline: Optional[str] = None
-    tag: Optional[str] = None
     created: str
     archived: bool
 
@@ -73,6 +74,14 @@ async def create_model(model: Model):
     values = {"name": model.name, "description": model.description}
     result = await database.execute(query, values=values)
     return result
+
+
+@app.get(f"{version}/models/{{id}}/versions", response_model=List[Version])
+async def read_model(id: str):
+    """Fetch all model versions based on a model id"""
+
+    query = "SELECT * FROM versions WHERE model_id = :model_id"
+    return await database.fetch_all(query=query, values={"model_id": id})
 
 
 @app.post(f"{version}/models/{{id}}/versions")
@@ -173,14 +182,6 @@ async def create_model_data(
         # delete the scratch model folder
         if temp_path.exists():
             shutil.rmtree(temp_path)
-
-
-@app.get(f"{version}/models/{{id}}/versions")
-async def read_model(id: str):
-    """Fetch all model versions based on a model id"""
-
-    query = "SELECT * FROM versions WHERE model_id = :model_id"
-    return await database.fetch_all(query=query, values={"model_id": id})
 
 
 @app.get(f"{version}/models/{{id}}/versions/{{tag}}")
