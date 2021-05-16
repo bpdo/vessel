@@ -52,7 +52,7 @@ async def create_model_data(
     random_uuid = str(uuid.uuid4())
 
     # create a temp storage location for model upload
-    temp_path = Path(_config["file_path"], ".vessel", random_uuid)
+    temp_path = Path(_config["file_path"], ".tmp", random_uuid)
 
     try:
         # check if the model exists
