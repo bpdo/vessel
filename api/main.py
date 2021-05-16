@@ -41,6 +41,7 @@ async def shutdown():
 class Model(BaseModel):
     name: str
     description: Optional[str] = None
+    archived: Optional[bool]
 
 
 class Version(BaseModel):
@@ -66,14 +67,21 @@ async def read_models(include_archived: bool = False):
     return await database.fetch_all(query=query)
 
 
+@app.get(f"{version}/models/{{id}}", response_model=Model)
+async def read_model(id: int):
+    """Fetches model details based on a model id"""
+
+    query = "SELECT * FROM models WHERE id = :id"
+    return await database.fetch_one(query, values={"id": id})
+
+
 @app.post(f"{version}/models")
 async def create_model(model: Model):
     """Creates a new model, name must be unique"""
 
     query = "INSERT INTO models(name, description) VALUES(:name, :description)"
     values = {"name": model.name, "description": model.description}
-    result = await database.execute(query, values=values)
-    return result
+    return await database.execute(query, values=values)
 
 
 @app.get(f"{version}/models/{{id}}/versions", response_model=List[Version])
