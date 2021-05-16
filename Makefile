@@ -1,2 +1,2 @@
 start:
-	uvicorn main:app --reload-dir api --app-dir api
+	uvicorn --reload --reload-dir ./api api.main:app
