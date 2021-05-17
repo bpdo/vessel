@@ -17,7 +17,13 @@ class Model(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
+    created: str
     archived: Optional[bool]
+
+
+class PostModel(BaseModel):
+    name: str
+    description: Optional[str] = None
 
 
 @router.get("/", response_model=List[Model])
@@ -41,7 +47,7 @@ async def read_model(id: int):
 
 
 @router.post("/")
-async def create_model(model: Model):
+async def create_model(model: PostModel):
     """Creates a new model, name must be unique"""
 
     try:
