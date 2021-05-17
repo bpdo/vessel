@@ -126,7 +126,7 @@ async def create_model_data(
 
         # select the newly create model from the database
         query = "SELECT * FROM versions WHERE model_id = :model_id AND tag = :tag"
-        values = {"model_id": id, "tag": tag}
+        values = {"model_id": model_id, "tag": tag}
         return await database.fetch_one(query=query, values=values)
 
     except sqlite3.IntegrityError as db_error:
