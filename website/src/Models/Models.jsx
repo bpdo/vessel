@@ -21,10 +21,14 @@ const Models = ({ models, setModel }) => {
           .filter((m) => m.name.toLowerCase().includes(search.toLowerCase()))
           .map((m) => (
             <li className="list-group-unstyled d-flex mb-3 mx-1" key={m.name}>
-              <Copy color={"#94A3B8"} size={16} className="mt-2" />
+              <Copy
+                color={"#94A3B8"}
+                size={16}
+                className="mt-2 flex-shrink-0"
+              />
               <div>
                 <button
-                  className="btn btn-sm btn-link"
+                  className="btn btn-sm btn-link py-0"
                   href={`/models/${m.id}`}
                   onClick={() => setModel(m)}
                 >
