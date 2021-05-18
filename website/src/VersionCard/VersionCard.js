@@ -11,9 +11,9 @@ const VersionCard = ({ model, version }) => (
       <div className="row py-1 flex-grow-1">
         <div className="col-4">
           <Hexagon color="#94A3B8" size={18} />
-          <a className="link-dark px-1 small" href={`/models/${version.tag}`}>
+          <span className="px-1 small">
             {model.name} {version.tag.toLowerCase()}
-          </a>
+          </span>
         </div>
         <div className="col-5 small text-muted">{version.hash}</div>
         <div className="col-3 small text-end text-muted">
