@@ -1,4 +1,10 @@
 {
   "editor.formatOnSave": true,
   "python.formatting.provider": "black",
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
 }
