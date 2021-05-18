@@ -36,7 +36,7 @@ class Version(BaseModel):
 async def read_model(model_id: int):
     """Fetch all model versions based on a model id"""
 
-    query = "SELECT * FROM versions WHERE model_id = :model_id"
+    query = "SELECT * FROM versions WHERE model_id = :model_id ORDER BY created DESC"
     return await database.fetch_all(query=query, values={"model_id": model_id})
 
 
