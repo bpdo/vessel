@@ -30,6 +30,7 @@ async def _init():
         query = """CREATE TABLE models (
             id INTEGER PRIMARY KEY,
             name text NOT NULL UNIQUE,
+            created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             description text,
             archived integer DEFAULT 0
         )"""
